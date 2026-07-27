@@ -350,6 +350,9 @@
     .stats{ margin:12px 14px 0; }
     .stat{ padding:2px 16px; }
   }
+  /* rep accounts: manager-only controls hidden */
+  .is-rep .mgr-only{ display:none !important; }
+
   @media (prefers-reduced-motion: reduce){
     *{ transition:none !important; animation:none !important; }
   }
@@ -398,7 +401,7 @@
       <button id="btnList" onclick="setView('list')">List</button>
     </div>
     <div class="spacer"></div>
-    <button class="btn btn-ghost btn-sm" onclick="openImport()">Import CSV</button>
+    <button class="btn btn-ghost btn-sm mgr-only" onclick="openImport()">Import CSV</button>
     <button class="btn btn-primary btn-sm" onclick="openLead(null)">New Lead</button>
     <div class="user-chip">
       <span class="avatar" id="meAvatar"></span>
@@ -411,7 +414,7 @@
 
   <div class="toolbar">
     <input type="search" id="fSearch" placeholder="Search name, phone, email, interest…" oninput="renderAll()">
-    <select id="fOwner" onchange="renderAll()"><option value="">All owners</option></select>
+    <select id="fOwner" class="mgr-only" onchange="renderAll()"><option value="">All owners</option></select>
     <select id="fPriority" onchange="renderAll()">
       <option value="">All priorities</option>
       <option value="hot">Hot</option>
@@ -423,7 +426,7 @@
     <select id="fStage" onchange="renderAll()">
       <option value="">All stages</option>
     </select>
-    <button class="chip" id="chipMine" onclick="toggleMine()">My leads</button>
+    <button class="chip mgr-only" id="chipMine" onclick="toggleMine()">My leads</button>
     <button class="chip" id="chipOverdue" onclick="toggleOverdue()">Overdue <span class="cnt" id="overdueCnt"></span></button>
   </div>
 
@@ -554,6 +557,7 @@ const priLabel = k => (PRIORITIES.find(p => p.key === k) || {}).label || k;
 
 let sb = null;              // supabase client
 let me = null;              // { id, email }
+let isManager = false;      // role from profiles; reps see only their assigned leads
 let profiles = [];          // team
 let leads = [];
 let view = 'board';
@@ -667,7 +671,9 @@ async function loadAll(){
 
   const meP = profiles.find(p => p.id === me.id);
   const myName = meP?.full_name || me.email;
-  $('meName').textContent = myName;
+  isManager = meP?.role === 'manager';
+  document.body.classList.toggle('is-rep', !isManager);
+  $('meName').textContent = myName + (isManager ? ' · Manager' : '');
   $('meAvatar').textContent = initials(myName);
 
   // owner filter + assignment selects
@@ -877,8 +883,9 @@ function openLead(id){
 
   $('leadModalTitle').textContent = isNew ? 'New Lead' : l.name;
   $('btnSaveLead').textContent = isNew ? 'Add Lead' : 'Save Changes';
-  $('btnDeleteLead').classList.toggle('hidden', isNew);
+  $('btnDeleteLead').classList.toggle('hidden', isNew || !isManager);
   $('activityBlock').classList.toggle('hidden', isNew);
+  $('lf_assigned').disabled = !isManager;   // reps cannot reassign
 
   $('lf_name').value     = l?.name || '';
   $('lf_phone').value    = l?.phone || '';
@@ -889,7 +896,7 @@ function openLead(id){
   $('lf_value').value    = l?.value || '';
   $('lf_priority').value = l?.priority || 'warm';
   $('lf_stage').value    = l?.stage || 'new';
-  $('lf_assigned').value = l?.assigned_to || '';
+  $('lf_assigned').value = l?.assigned_to || (isManager ? '' : me.id);
   $('lf_followup').value = l?.next_follow_up || '';
 
   $('leadOverlay').classList.remove('hidden');
@@ -916,6 +923,11 @@ function collectLeadForm(){
 async function saveLead(){
   const rec = collectLeadForm();
   if (!rec.name) { toast('Name is required', true); return; }
+  if (!isManager) {
+    // reps keep leads assigned to themselves; new leads self-assign
+    const existing = openLeadId ? leads.find(l => l.id === openLeadId) : null;
+    rec.assigned_to = existing ? existing.assigned_to : me.id;
+  }
 
   if (!openLeadId) {
     const { data, error } = await sb.from('leads').insert(rec).select().single();

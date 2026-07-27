@@ -9,8 +9,17 @@ create table public.profiles (
   id         uuid primary key references auth.users (id) on delete cascade,
   full_name  text not null default '',
   email      text,
+  role       text not null default 'rep' check (role in ('manager','rep')),
   created_at timestamptz not null default now()
 );
+
+-- helper: is the signed-in user a manager?
+create or replace function public.is_manager()
+returns boolean
+language sql stable security definer set search_path = public
+as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'manager');
+$$;
 
 alter table public.profiles enable row level security;
 
@@ -75,9 +84,23 @@ create index leads_assigned_idx on public.leads (assigned_to);
 
 alter table public.leads enable row level security;
 
-create policy "leads: full access for signed-in team"
-  on public.leads for all to authenticated
-  using (true) with check (true);
+-- managers see everything; reps only their assigned leads
+create policy "leads: managers all, reps assigned (select)"
+  on public.leads for select to authenticated
+  using (public.is_manager() or assigned_to = auth.uid());
+
+create policy "leads: managers all, reps assigned (insert)"
+  on public.leads for insert to authenticated
+  with check (public.is_manager() or assigned_to = auth.uid());
+
+create policy "leads: managers all, reps assigned (update)"
+  on public.leads for update to authenticated
+  using (public.is_manager() or assigned_to = auth.uid())
+  with check (public.is_manager() or assigned_to = auth.uid());
+
+create policy "leads: managers only (delete)"
+  on public.leads for delete to authenticated
+  using (public.is_manager());
 
 -- Keep updated_at fresh
 create or replace function public.touch_updated_at()
@@ -106,9 +129,18 @@ create index lead_notes_lead_idx on public.lead_notes (lead_id, created_at desc)
 
 alter table public.lead_notes enable row level security;
 
-create policy "notes: full access for signed-in team"
-  on public.lead_notes for all to authenticated
-  using (true) with check (true);
+-- note visibility follows the lead
+create policy "notes: visible with lead (select)"
+  on public.lead_notes for select to authenticated
+  using (exists (select 1 from public.leads l where l.id = lead_id));
+
+create policy "notes: visible with lead (insert)"
+  on public.lead_notes for insert to authenticated
+  with check (exists (select 1 from public.leads l where l.id = lead_id));
+
+create policy "notes: managers only (delete)"
+  on public.lead_notes for delete to authenticated
+  using (public.is_manager());
 
 -- ---------- Realtime (live sync between reps) ----------
 alter publication supabase_realtime add table public.leads;
