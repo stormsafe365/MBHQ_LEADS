@@ -1,0 +1,4 @@
+# Customer PII — never push these to the (public) repo.
+# Lead data lives in Supabase behind logins, not in git.
+leads-import.csv
+leads-import.sql

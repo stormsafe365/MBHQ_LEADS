@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0e0f12">
+<title>Lead Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --accent:      #c9a962;
+    --accent-dim:  #b3924e;
+    --accent-glow: rgba(201,169,98,.07);
+    --bg:      #0e0f12;
+    --bg-2:    #141519;
+    --bg-3:    #1a1c21;
+    --bg-4:    #202329;
+    --border:     #222429;
+    --border-vis: #303339;
+    --text:  #ececee;
+    --sub:   #9a9ca3;
+    --muted: #5e6167;
+    --danger:  #e0565c;
+    --success: #6fbf9a;
+    --hot:  #e0565c;
+    --warm: #cfa147;
+    --std:  #7291ad;
+    --lt:   #9d8fc9;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{
+    background:var(--bg); color:var(--text);
+    font:14px/1.55 'Inter',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:#2c2f35; border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover{ background:#3a3e45; }
+  button{ font-family:inherit; cursor:pointer; }
+  input,select,textarea{
+    font-family:inherit; font-size:13.5px; color:var(--text);
+    background:var(--bg-3); border:1px solid var(--border-vis);
+    border-radius:6px; padding:8px 10px; width:100%;
+    transition:border-color .12s;
+  }
+  input:focus,select:focus,textarea:focus{ outline:none; border-color:#4a4e56; }
+  input[type="date"]{ color-scheme:dark; }
+  ::placeholder{ color:var(--muted); }
+  .hidden{ display:none !important; }
+  .num{ font-variant-numeric:tabular-nums; }
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    display:inline-flex; align-items:center; gap:6px;
+    border:none; border-radius:6px; padding:8px 15px;
+    font-size:13px; font-weight:600; white-space:nowrap; letter-spacing:.01em;
+    transition:background .12s, border-color .12s, color .12s;
+  }
+  .btn-primary{ background:var(--text); color:#101114; }
+  .btn-primary:hover{ background:#d3d4d8; }
+  .btn-primary:disabled{ background:#3a3d44; color:#83868d; cursor:default; }
+  .btn-ghost{ background:transparent; color:var(--sub); border:1px solid var(--border-vis); }
+  .btn-ghost:hover{ color:var(--text); border-color:#4a4e56; }
+  .btn-danger{ background:transparent; color:var(--danger); border:1px solid var(--border-vis); }
+  .btn-danger:hover{ border-color:var(--danger); }
+  .btn-sm{ padding:6px 11px; font-size:12.5px; }
+
+  /* ---------- Auth / setup screens ---------- */
+  .center-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .auth-card{
+    width:100%; max-width:380px; background:var(--bg-2);
+    border:1px solid var(--border); border-radius:10px; padding:36px 32px;
+  }
+  .auth-card h1{
+    font-size:15px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  .auth-card h1 span{ color:var(--accent); }
+  .auth-card .sub{ color:var(--sub); font-size:13px; margin-bottom:24px; }
+  .auth-card label{
+    display:block; font-size:11px; font-weight:600; color:var(--sub);
+    text-transform:uppercase; letter-spacing:.08em; margin:16px 0 6px;
+  }
+  .auth-err{
+    color:var(--danger); font-size:13px; margin-top:12px; min-height:18px;
+  }
+  .setup-card{ max-width:540px; }
+  .setup-card ol{ margin:14px 0 0 20px; color:var(--sub); font-size:13.5px; }
+  .setup-card li{ margin-bottom:10px; }
+  .setup-card code{
+    background:var(--bg-3); border:1px solid var(--border); border-radius:4px;
+    padding:1px 6px; font-size:12px; color:var(--accent);
+  }
+
+  /* ---------- App shell ---------- */
+  header.app{
+    position:sticky; top:0; z-index:40;
+    display:flex; align-items:center; gap:16px;
+    padding:0 20px; height:52px;
+    background:rgba(14,15,18,.96); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+  }
+  .logo{
+    font-weight:700; font-size:12.5px; letter-spacing:.14em; text-transform:uppercase; white-space:nowrap;
+  }
+  .logo span{ color:var(--accent); }
+  .view-toggle{
+    display:flex; background:var(--bg-3); border:1px solid var(--border);
+    border-radius:6px; padding:2px; gap:2px;
+  }
+  .view-toggle button{
+    background:transparent; border:none; color:var(--sub); border-radius:4px;
+    padding:5px 14px; font-size:12.5px; font-weight:600;
+    transition:background .12s, color .12s;
+  }
+  .view-toggle button:hover{ color:var(--text); }
+  .view-toggle button.active{ background:var(--bg-4); color:var(--text); }
+  .spacer{ flex:1; }
+  .user-chip{
+    display:flex; align-items:center; gap:9px; font-size:12.5px; color:var(--sub); white-space:nowrap;
+  }
+  .avatar{
+    width:24px; height:24px; border-radius:5px; background:var(--bg-4);
+    border:1px solid var(--border-vis); color:var(--sub);
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:9.5px; font-weight:700; letter-spacing:.03em; flex:none;
+  }
+
+  /* ---------- Stats strip ---------- */
+  .stats{
+    display:flex; flex-wrap:wrap; align-items:center;
+    margin:16px 20px 0; padding:12px 0;
+    border:1px solid var(--border); border-radius:8px; background:var(--bg-2);
+  }
+  .stat{
+    padding:2px 26px; border-right:1px solid var(--border);
+  }
+  .stat:last-child{ border-right:none; }
+  .stat .val{
+    font-size:16px; font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:-.01em;
+  }
+  .stat .val.red{ color:var(--danger); }
+  .stat .val.green{ color:var(--success); }
+  .stat .lbl{
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-top:1px;
+  }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+    padding:14px 20px 2px;
+  }
+  .toolbar input[type="search"]{ max-width:240px; }
+  .toolbar select{ width:auto; color:var(--sub); }
+  .chip{
+    border:1px solid var(--border-vis); background:transparent; color:var(--sub);
+    border-radius:6px; padding:7px 13px; font-size:12.5px; font-weight:600;
+    transition:border-color .12s, color .12s;
+  }
+  .chip:hover{ color:var(--text); }
+  .chip.active{ border-color:var(--accent); color:var(--accent); background:var(--accent-glow); }
+  .chip .cnt{ opacity:.8; }
+
+  /* ---------- Priority / stage indicators ---------- */
+  .pri{
+    display:inline-flex; align-items:center; gap:5px; flex:none;
+    font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--sub);
+  }
+  .pri i{ width:6px; height:6px; border-radius:50%; display:inline-block; }
+  .p-hot i      { background:var(--hot); }
+  .p-warm i     { background:var(--warm); }
+  .p-standard i { background:var(--std); }
+  .p-longterm i { background:var(--lt); }
+  .p-nurture i  { background:var(--muted); }
+  .p-hot{ color:var(--hot); }
+  .p-nurture{ color:var(--muted); }
+  .stg{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:12.5px; font-weight:500; color:var(--sub); white-space:nowrap;
+  }
+  .stg i{ width:6px; height:6px; border-radius:50%; display:inline-block; flex:none; }
+
+  /* ---------- Board ---------- */
+  .board{
+    display:flex; gap:12px; padding:16px 20px 24px;
+    overflow-x:auto; align-items:stretch;
+    height:calc(100vh - 195px);
+  }
+  .col{
+    flex:1 0 250px; min-width:250px;
+    display:flex; flex-direction:column;
+    background:var(--bg-2); border:1px solid var(--border); border-radius:10px;
+    transition:border-color .12s, background .12s;
+  }
+  .col.drag-over{ border-color:#4a4e56; background:var(--bg-3); }
+  .col-head{
+    display:flex; align-items:center; gap:8px; padding:11px 14px; flex:none;
+    border-bottom:1px solid var(--border);
+  }
+  .col-head .dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+  .col-head h3{
+    font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.09em; color:var(--sub);
+  }
+  .col-head .cnt{
+    margin-left:auto; font-size:11px; font-weight:600; color:var(--muted); font-variant-numeric:tabular-nums;
+  }
+  .col-body{
+    flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px; padding:10px;
+  }
+  .col-empty{
+    margin:auto; color:var(--muted); font-size:12px; letter-spacing:.04em;
+  }
+  .card{
+    background:var(--bg-3); border:1px solid var(--border); border-radius:7px;
+    padding:10px 12px; cursor:grab;
+    transition:border-color .12s;
+  }
+  .card:hover{ border-color:#4a4e56; }
+  .card.dragging{ opacity:.4; }
+  .card .top{ display:flex; align-items:baseline; gap:8px; }
+  .card .name{
+    font-weight:600; font-size:13.5px; flex:1; letter-spacing:-.005em;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .card .meta{
+    color:var(--sub); font-size:12px; margin-top:4px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .card .meta.loc{ color:var(--muted); }
+  .card .foot{
+    display:flex; align-items:center; gap:8px; margin-top:10px; font-size:12px; color:var(--sub);
+  }
+  .card .value{ font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
+  .card .fup{ margin-left:auto; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .card .fup.overdue{ color:var(--danger); font-weight:600; }
+
+  /* ---------- Table ---------- */
+  .table-wrap{ padding:16px 20px 28px; overflow-x:auto; }
+  table{
+    width:100%; border-collapse:collapse; background:var(--bg-2);
+    border:1px solid var(--border); border-radius:8px; overflow:hidden;
+  }
+  thead th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--muted); font-weight:600; padding:10px 14px;
+    border-bottom:1px solid var(--border-vis);
+    cursor:pointer; user-select:none; white-space:nowrap;
+    transition:color .12s;
+  }
+  thead th:hover{ color:var(--text); }
+  thead th .arrow{ font-size:9px; }
+  tbody td{
+    padding:10px 14px; border-bottom:1px solid var(--border);
+    font-size:13px; white-space:nowrap; font-variant-numeric:tabular-nums;
+  }
+  tbody tr{ cursor:pointer; }
+  tbody tr:hover td{ background:var(--bg-3); }
+  tbody tr:last-child td{ border-bottom:none; }
+  td .overdue{ color:var(--danger); font-weight:600; }
+  .empty{
+    padding:60px 20px; text-align:center; color:var(--muted); font-size:13.5px;
+  }
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    position:fixed; inset:0; z-index:60; background:rgba(8,9,11,.7);
+    display:flex; align-items:flex-start; justify-content:center;
+    padding:5vh 16px 16px; overflow-y:auto;
+  }
+  .modal{
+    background:var(--bg-2); border:1px solid var(--border-vis); border-radius:10px;
+    width:100%; max-width:720px; padding:26px 28px;
+  }
+  .modal-head{ display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+  .modal-head h2{
+    font-size:14px; font-weight:600; letter-spacing:-.005em;
+  }
+  .modal-head .x{
+    margin-left:auto; background:transparent; border:none; color:var(--muted);
+    font-size:20px; line-height:1; padding:2px 6px;
+  }
+  .modal-head .x:hover{ color:var(--text); }
+  .fgrid{ display:grid; grid-template-columns:1fr 1fr; gap:13px 16px; }
+  .fgrid .full{ grid-column:1 / -1; }
+  .fld label{
+    display:block; font-size:10.5px; font-weight:600; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.08em; margin-bottom:5px;
+  }
+  .modal-actions{
+    display:flex; gap:10px; margin-top:22px; align-items:center;
+  }
+  .modal-actions .right{ margin-left:auto; display:flex; gap:10px; }
+
+  /* ---------- Activity ---------- */
+  .activity{ margin-top:26px; border-top:1px solid var(--border); padding-top:18px; }
+  .activity h3{
+    font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.09em;
+    color:var(--muted); margin-bottom:12px;
+  }
+  .note-input{ display:flex; gap:8px; margin-bottom:14px; }
+  .note-list{ display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; }
+  .note{
+    background:var(--bg-3); border:1px solid var(--border); border-radius:7px; padding:9px 12px;
+  }
+  .note.system{ background:transparent; border:none; padding:3px 12px; }
+  .note .who{ font-size:11.5px; color:var(--muted); margin-bottom:2px; }
+  .note .who b{ color:var(--sub); font-weight:600; }
+  .note .body{ font-size:13px; white-space:pre-wrap; }
+  .note.system .who{ display:inline; margin-right:8px; }
+  .note.system .body{ display:inline; color:var(--muted); font-size:12.5px; }
+
+  /* ---------- Import ---------- */
+  .import-zone textarea{ min-height:110px; font-size:12.5px; }
+  .maprow{
+    display:flex; flex-wrap:wrap; gap:10px; margin:14px 0;
+  }
+  .mapcell{ flex:1 1 140px; }
+  .mapcell .src{
+    font-size:11.5px; font-weight:600; color:var(--sub); margin-bottom:4px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .preview-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:7px; }
+  .preview-wrap table{ border:none; border-radius:0; }
+  .preview-wrap td{ font-size:12px; color:var(--sub); }
+  .import-info{ font-size:13px; color:var(--sub); margin:10px 0; }
+
+  /* ---------- Toast ---------- */
+  #toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    background:var(--bg-4); border:1px solid var(--border-vis); color:var(--text);
+    border-radius:7px; padding:9px 18px; font-size:13px; font-weight:500;
+    z-index:100; opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  #toast.show{ opacity:1; }
+  #toast.err{ border-color:var(--danger); color:var(--danger); }
+
+  @media (max-width:768px){
+    header.app{ flex-wrap:wrap; height:auto; padding:10px 14px; }
+    .fgrid{ grid-template-columns:1fr; }
+    .toolbar input[type="search"]{ max-width:none; flex:1 1 100%; }
+    .stats{ margin:12px 14px 0; }
+    .stat{ padding:2px 16px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ transition:none !important; animation:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= SETUP SCREEN (shown until keys are pasted) ================= -->
+<div id="setupScreen" class="center-screen hidden">
+  <div class="auth-card setup-card">
+    <h1>Lead <span>Tracker</span> — Setup</h1>
+    <p class="sub">One-time connection to your Supabase project.</p>
+    <ol>
+      <li>Create a free project at <code>supabase.com</code>.</li>
+      <li>In the dashboard, open <code>SQL Editor</code>, paste the contents of <code>supabase-setup.sql</code> (in this folder), and run it.</li>
+      <li>Open <code>Project Settings → API</code>, copy the <b>Project URL</b> and the <b>anon public</b> key.</li>
+      <li>Open <code>index.html</code> in a text editor and paste both into the <code>CONFIG</code> block at the top of the script.</li>
+      <li>In <code>Authentication → Users</code>, click <b>Add user</b> for each rep: email <code>first.last@local.com</code>, password = their 6-digit PIN, check <b>Auto Confirm User</b>.</li>
+      <li>Reload this page and sign in.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ================= AUTH SCREEN ================= -->
+<div id="authScreen" class="center-screen hidden">
+  <form class="auth-card" id="loginForm">
+    <h1 id="authTitle">Lead <span>Tracker</span></h1>
+    <p class="sub">Enter your name and PIN.</p>
+    <label for="loginName">Name</label>
+    <input id="loginName" type="text" autocomplete="username" placeholder="Mike Torres" required>
+    <label for="loginPin">PIN</label>
+    <input id="loginPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="6-digit PIN" required>
+    <div class="auth-err" id="authErr"></div>
+    <button class="btn btn-primary" style="width:100%; justify-content:center; margin-top:6px;" type="submit">
+      Sign In
+    </button>
+  </form>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+  <header class="app">
+    <div class="logo" id="appLogo">Lead <span>Tracker</span></div>
+    <div class="view-toggle" role="tablist">
+      <button id="btnBoard" class="active" onclick="setView('board')">Board</button>
+      <button id="btnList" onclick="setView('list')">List</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost btn-sm" onclick="openImport()">Import CSV</button>
+    <button class="btn btn-primary btn-sm" onclick="openLead(null)">New Lead</button>
+    <div class="user-chip">
+      <span class="avatar" id="meAvatar"></span>
+      <span id="meName"></span>
+      <button class="btn btn-ghost btn-sm" onclick="signOut()">Sign out</button>
+    </div>
+  </header>
+
+  <div class="stats" id="statsStrip"></div>
+
+  <div class="toolbar">
+    <input type="search" id="fSearch" placeholder="Search name, phone, email, interest…" oninput="renderAll()">
+    <select id="fOwner" onchange="renderAll()"><option value="">All owners</option></select>
+    <select id="fPriority" onchange="renderAll()">
+      <option value="">All priorities</option>
+      <option value="hot">Hot</option>
+      <option value="warm">Warm</option>
+      <option value="standard">Standard</option>
+      <option value="longterm">Long-Term</option>
+      <option value="nurture">Nurture</option>
+    </select>
+    <select id="fStage" onchange="renderAll()">
+      <option value="">All stages</option>
+    </select>
+    <button class="chip" id="chipMine" onclick="toggleMine()">My leads</button>
+    <button class="chip" id="chipOverdue" onclick="toggleOverdue()">Overdue <span class="cnt" id="overdueCnt"></span></button>
+  </div>
+
+  <div id="boardView" class="board"></div>
+
+  <div id="listView" class="table-wrap hidden">
+    <table>
+      <thead><tr id="listHead"></tr></thead>
+      <tbody id="listBody"></tbody>
+    </table>
+    <div class="empty hidden" id="listEmpty">No leads match the current filters.</div>
+  </div>
+</div>
+
+<!-- ================= LEAD MODAL ================= -->
+<div id="leadOverlay" class="overlay hidden" onmousedown="overlayClose(event,'leadOverlay')">
+  <div class="modal" onmousedown="event.stopPropagation()">
+    <div class="modal-head">
+      <h2 id="leadModalTitle">New Lead</h2>
+      <button class="x" onclick="closeOverlay('leadOverlay')" aria-label="Close">×</button>
+    </div>
+    <div class="fgrid">
+      <div class="fld full"><label>Name *</label><input id="lf_name" placeholder="John Smith"></div>
+      <div class="fld"><label>Phone</label><input id="lf_phone" placeholder="561-555-0100"></div>
+      <div class="fld"><label>Email</label><input id="lf_email" type="email" placeholder="john@email.com"></div>
+      <div class="fld"><label>Source</label><input id="lf_source" placeholder="Facebook ad, referral, website…"></div>
+      <div class="fld"><label>Location</label><input id="lf_location" placeholder="City / county / state"></div>
+      <div class="fld full"><label>Interested In</label><input id="lf_interest" placeholder="30×50×14 workshop, RV cover, commercial…"></div>
+      <div class="fld"><label>Est. Value ($)</label><input id="lf_value" type="number" min="0" step="100" placeholder="0"></div>
+      <div class="fld"><label>Priority</label>
+        <select id="lf_priority">
+          <option value="hot">Hot</option>
+          <option value="warm">Warm</option>
+          <option value="standard" selected>Standard</option>
+          <option value="longterm">Long-Term</option>
+          <option value="nurture">Nurture</option>
+        </select>
+      </div>
+      <div class="fld"><label>Stage</label><select id="lf_stage"></select></div>
+      <div class="fld"><label>Assigned To</label><select id="lf_assigned"></select></div>
+      <div class="fld"><label>Next Follow-Up</label><input id="lf_followup" type="date"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm hidden" id="btnDeleteLead" onclick="deleteLead()">Delete</button>
+      <div class="right">
+        <button class="btn btn-ghost" onclick="closeOverlay('leadOverlay')">Cancel</button>
+        <button class="btn btn-primary" id="btnSaveLead" onclick="saveLead()">Save Lead</button>
+      </div>
+    </div>
+    <div class="activity hidden" id="activityBlock">
+      <h3>Notes &amp; Activity</h3>
+      <div class="note-input">
+        <input id="noteInput" placeholder="Add a note… (call outcome, next step, details)"
+               onkeydown="if(event.key==='Enter')addNote()">
+        <button class="btn btn-primary btn-sm" onclick="addNote()">Add</button>
+      </div>
+      <div class="note-list" id="noteList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= IMPORT MODAL ================= -->
+<div id="importOverlay" class="overlay hidden" onmousedown="overlayClose(event,'importOverlay')">
+  <div class="modal" onmousedown="event.stopPropagation()">
+    <div class="modal-head">
+      <h2>Import Leads (CSV)</h2>
+      <button class="x" onclick="closeOverlay('importOverlay')" aria-label="Close">×</button>
+    </div>
+    <div class="import-zone">
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+        <label class="btn btn-ghost btn-sm" style="margin:0;">
+          Choose CSV file
+          <input type="file" id="csvFile" accept=".csv,.txt,.tsv" class="hidden" onchange="csvFromFile(this)">
+        </label>
+        <span style="color:var(--sub); font-size:13px;">or paste rows below (first row = headers)</span>
+      </div>
+      <textarea id="csvPaste" placeholder="name,phone,email,source,interest,location,value&#10;John Smith,561-555-0100,john@email.com,Facebook,30x40 garage,Palm Beach FL,18000"
+                oninput="parseCsvInput()"></textarea>
+    </div>
+    <div id="importMapping" class="hidden">
+      <div class="import-info" id="importInfo"></div>
+      <div class="maprow" id="mapRow"></div>
+      <div class="preview-wrap"><table><tbody id="importPreview"></tbody></table></div>
+    </div>
+    <div class="modal-actions">
+      <div class="right">
+        <button class="btn btn-ghost" onclick="closeOverlay('importOverlay')">Cancel</button>
+        <button class="btn btn-primary" id="btnImport" onclick="runImport()" disabled>Import 0 Leads</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+/* =====================================================================
+   CONFIG — paste your Supabase values here (Project Settings → API)
+   ===================================================================== */
+const SUPABASE_URL      = "https://ckpcyamzzwafnjrdmpuc.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrcGN5YW16endhZm5qcmRtcHVjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3MjY4NzAsImV4cCI6MjEwMDMwMjg3MH0.30vww2WtapWOU9BhtpppMu6BIyCZHE41-Kz8Bu4E5E8";
+const COMPANY_NAME      = "Metal Building HQ";                // shown in the header & sign-in card
+/* ===================================================================== */
+
+const STAGES = [
+  { key:'new',        label:'New Lead',           color:'#7a9cc4' },
+  { key:'attempting', label:'Attempting Contact', color:'#9d8fc9' },
+  { key:'quoted',     label:'Quoted',             color:'#c9a962' },
+  { key:'active',     label:'Active Follow-Up',   color:'#c98e62' },
+  { key:'future',     label:'Future Follow-Up',   color:'#8fa8c9' },
+  { key:'ready',      label:'Ready to Order',     color:'#6fbf9a' },
+  { key:'won',        label:'Won',                color:'#4ea87f' },
+  { key:'lost',       label:'Lost',               color:'#5e6167' },
+  { key:'dq',         label:'Disqualified',       color:'#45484f' },
+];
+const OPEN_STAGES = ['new','attempting','quoted','active','future','ready'];
+// Priority drives call order, NOT pipeline stage. Nurture = no phone on file,
+// email workflow only — carries no call priority.
+const PRIORITIES = [
+  { key:'hot',      label:'Hot' },
+  { key:'warm',     label:'Warm' },
+  { key:'standard', label:'Standard' },
+  { key:'longterm', label:'Long-Term' },
+  { key:'nurture',  label:'Nurture' },
+];
+const PRIORITY_RANK = { hot:0, warm:1, standard:2, longterm:3, nurture:4 };
+const priLabel = k => (PRIORITIES.find(p => p.key === k) || {}).label || k;
+
+let sb = null;              // supabase client
+let me = null;              // { id, email }
+let profiles = [];          // team
+let leads = [];
+let view = 'board';
+let filterMine = false, filterOverdue = false;
+let sortKey = 'created_at', sortDir = -1;
+let openLeadId = null;      // lead currently in the modal (null = new)
+let importParsed = null;    // { headers, rows, mapping }
+let realtimeTimer = null;
+
+/* ---------------- helpers ---------------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = v => '$' + Number(v || 0).toLocaleString();
+const todayStr = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const isOverdue = l => l.next_follow_up && l.next_follow_up < todayStr() && OPEN_STAGES.includes(l.stage);
+const stageOf = k => STAGES.find(s => s.key === k) || STAGES[0];
+const profName = id => (profiles.find(p => p.id === id)?.full_name) || '—';
+const initials = name => (name || '?').trim().split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase();
+
+function toast(msg, isErr){
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.className = '', 2600);
+}
+function fmtDate(iso){
+  if(!iso) return '—';
+  const d = new Date(iso.length <= 10 ? iso + 'T00:00:00' : iso);
+  return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+}
+function fmtDateTime(iso){
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' ' +
+         d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+}
+function overlayClose(e, id){ if(e.target === e.currentTarget) closeOverlay(id); }
+function closeOverlay(id){ $(id).classList.add('hidden'); }
+
+/* ---------------- boot ---------------- */
+function boot(){
+  document.title = COMPANY_NAME;
+  const brand = COMPANY_NAME.trim().split(/\s+/);
+  const brandHtml = brand.length > 1
+    ? esc(brand.slice(0,-1).join(' ')) + ' <span>' + esc(brand[brand.length-1]) + '</span>'
+    : '<span>' + esc(COMPANY_NAME) + '</span>';
+  $('appLogo').innerHTML = brandHtml;
+  $('authTitle').innerHTML = brandHtml;
+
+  if (SUPABASE_URL.includes('PASTE_') || SUPABASE_ANON_KEY.includes('PASTE_')) {
+    $('setupScreen').classList.remove('hidden');
+    return;
+  }
+  sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  sb.auth.onAuthStateChange((_evt, session) => {
+    if (session?.user) enterApp(session.user);
+    else showAuth();
+  });
+}
+
+function showAuth(){
+  me = null;
+  $('app').classList.add('hidden');
+  $('authScreen').classList.remove('hidden');
+}
+
+// Reps sign in with Name + PIN. Auth still runs on email+password under the
+// hood: the name becomes a synthetic email (mike torres -> mike.torres@crew.local)
+// and the PIN is the password. Typing a full email works too (admin escape hatch).
+const AUTH_DOMAIN = 'local.com';
+function nameToEmail(raw){
+  raw = raw.trim();
+  if (raw.includes('@')) return raw.toLowerCase();
+  return raw.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().replace(/\s+/g, '.') + '@' + AUTH_DOMAIN;
+}
+
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('authErr').textContent = '';
+  const { error } = await sb.auth.signInWithPassword({
+    email: nameToEmail($('loginName').value),
+    password: $('loginPin').value,
+  });
+  if (error) $('authErr').textContent = 'Name or PIN not recognized.';
+});
+
+async function signOut(){ await sb.auth.signOut(); }
+
+async function enterApp(user){
+  if (me?.id === user.id) return;   // already in
+  me = { id: user.id, email: user.email };
+  $('authScreen').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  await loadAll();
+  subscribeRealtime();
+}
+
+/* ---------------- data ---------------- */
+async function loadAll(){
+  const [pRes, lRes] = await Promise.all([
+    sb.from('profiles').select('*').order('full_name'),
+    sb.from('leads').select('*'),
+  ]);
+  if (pRes.error || lRes.error) {
+    toast('Load failed: ' + (pRes.error || lRes.error).message, true);
+    return;
+  }
+  profiles = pRes.data;
+  leads = lRes.data;
+
+  const meP = profiles.find(p => p.id === me.id);
+  const myName = meP?.full_name || me.email;
+  $('meName').textContent = myName;
+  $('meAvatar').textContent = initials(myName);
+
+  // owner filter + assignment selects
+  $('fOwner').innerHTML = '<option value="">All owners</option><option value="none">Unassigned</option>' +
+    profiles.map(p => `<option value="${p.id}">${esc(p.full_name)}</option>`).join('');
+  $('lf_assigned').innerHTML = '<option value="">Unassigned</option>' +
+    profiles.map(p => `<option value="${p.id}">${esc(p.full_name)}</option>`).join('');
+  $('lf_stage').innerHTML = STAGES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+  $('fStage').innerHTML = '<option value="">All stages</option>' +
+    STAGES.map(s => `<option value="${s.key}">${s.label}</option>`).join('');
+
+  renderAll();
+}
+
+function subscribeRealtime(){
+  sb.channel('lead-sync')
+    .on('postgres_changes', { event:'*', schema:'public', table:'leads' }, scheduleReload)
+    .on('postgres_changes', { event:'*', schema:'public', table:'lead_notes' }, scheduleReload)
+    .subscribe();
+}
+function scheduleReload(){
+  clearTimeout(realtimeTimer);
+  realtimeTimer = setTimeout(async () => {
+    const { data, error } = await sb.from('leads').select('*');
+    if (!error) { leads = data; renderAll(); }
+    if (openLeadId && !$('leadOverlay').classList.contains('hidden')) loadNotes(openLeadId);
+  }, 400);
+}
+
+/* ---------------- filtering & rendering ---------------- */
+function filteredLeads(){
+  const q = $('fSearch').value.trim().toLowerCase();
+  const owner = $('fOwner').value;
+  const pri = $('fPriority').value;
+  const stg = $('fStage').value;
+  return leads.filter(l => {
+    if (filterMine && l.assigned_to !== me.id) return false;
+    if (filterOverdue && !isOverdue(l)) return false;
+    if (owner === 'none' && l.assigned_to) return false;
+    if (owner && owner !== 'none' && l.assigned_to !== owner) return false;
+    if (pri && l.priority !== pri) return false;
+    if (stg && l.stage !== stg) return false;
+    if (q) {
+      const hay = [l.name, l.phone, l.email, l.source, l.interest, l.location].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function toggleMine(){ filterMine = !filterMine; $('chipMine').classList.toggle('active', filterMine); renderAll(); }
+function toggleOverdue(){ filterOverdue = !filterOverdue; $('chipOverdue').classList.toggle('active', filterOverdue); renderAll(); }
+
+function setView(v){
+  view = v;
+  $('btnBoard').classList.toggle('active', v === 'board');
+  $('btnList').classList.toggle('active', v === 'list');
+  $('boardView').classList.toggle('hidden', v !== 'board');
+  $('listView').classList.toggle('hidden', v !== 'list');
+  renderAll();
+}
+
+function renderAll(){
+  renderStats();
+  if (view === 'board') renderBoard(); else renderList();
+}
+
+function renderStats(){
+  const open = leads.filter(l => OPEN_STAGES.includes(l.stage));
+  const pipeline = open.reduce((s,l) => s + Number(l.value || 0), 0);
+  const hot = open.filter(l => l.priority === 'hot').length;
+  const overdue = leads.filter(isOverdue).length;
+  const won = leads.filter(l => l.stage === 'won').length;
+  $('overdueCnt').textContent = overdue || '';
+  $('statsStrip').innerHTML = `
+    <div class="stat"><div class="val">${open.length}</div><div class="lbl">Open Leads</div></div>
+    <div class="stat"><div class="val">${money(pipeline)}</div><div class="lbl">Pipeline</div></div>
+    <div class="stat"><div class="val">${hot}</div><div class="lbl">Hot</div></div>
+    <div class="stat"><div class="val ${overdue ? 'red' : ''}">${overdue}</div><div class="lbl">Overdue</div></div>
+    <div class="stat"><div class="val green">${won}</div><div class="lbl">Won</div></div>`;
+}
+
+function cardHtml(l){
+  const fup = l.next_follow_up
+    ? `<span class="fup ${isOverdue(l) ? 'overdue' : ''}">${fmtDate(l.next_follow_up)}</span>` : '';
+  const owner = l.assigned_to
+    ? `<span class="avatar" style="width:20px;height:20px;font-size:8.5px;" title="${esc(profName(l.assigned_to))}">${initials(profName(l.assigned_to))}</span>` : '';
+  return `
+  <div class="card" draggable="true" data-id="${l.id}" onclick="openLead('${l.id}')">
+    <div class="top">
+      <div class="name">${esc(l.name)}</div>
+      <span class="pri p-${l.priority}"><i></i>${priLabel(l.priority)}</span>
+    </div>
+    ${l.interest ? `<div class="meta">${esc(l.interest)}</div>` : ''}
+    ${l.location ? `<div class="meta loc">${esc(l.location)}</div>` : ''}
+    <div class="foot">
+      ${owner}
+      ${Number(l.value) ? `<span class="value">${money(l.value)}</span>` : ''}
+      ${fup}
+    </div>
+  </div>`;
+}
+
+function renderBoard(){
+  const fl = filteredLeads();
+  $('boardView').innerHTML = STAGES.map(s => {
+    const items = fl.filter(l => l.stage === s.key)
+      .sort((a,b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || (a.next_follow_up || '9999') .localeCompare(b.next_follow_up || '9999'));
+    return `
+    <div class="col" data-stage="${s.key}">
+      <div class="col-head">
+        <span class="dot" style="background:${s.color}"></span>
+        <h3>${s.label}</h3>
+        <span class="cnt">${items.length}</span>
+      </div>
+      <div class="col-body">${items.map(cardHtml).join('') || '<div class="col-empty">No leads</div>'}</div>
+    </div>`;
+  }).join('');
+  wireDragDrop();
+}
+
+function wireDragDrop(){
+  document.querySelectorAll('.card[draggable]').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', card.dataset.id);
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  });
+  document.querySelectorAll('.col').forEach(col => {
+    col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
+    col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+    col.addEventListener('drop', async e => {
+      e.preventDefault();
+      col.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const stage = col.dataset.stage;
+      const lead = leads.find(l => l.id === id);
+      if (!lead || lead.stage === stage) return;
+      const oldStage = lead.stage;
+      lead.stage = stage;           // optimistic
+      renderAll();
+      const { error } = await sb.from('leads').update({ stage }).eq('id', id);
+      if (error) { lead.stage = oldStage; renderAll(); toast('Update failed: ' + error.message, true); return; }
+      logSystem(id, `Stage: ${stageOf(oldStage).label} → ${stageOf(stage).label}`);
+    });
+  });
+}
+
+const LIST_COLS = [
+  { key:'name',           label:'Name' },
+  { key:'stage',          label:'Stage' },
+  { key:'priority',       label:'Priority' },
+  { key:'assigned_to',    label:'Owner' },
+  { key:'value',          label:'Value' },
+  { key:'source',         label:'Source' },
+  { key:'location',       label:'Location' },
+  { key:'next_follow_up', label:'Follow-Up' },
+  { key:'created_at',     label:'Added' },
+];
+
+function renderList(){
+  $('listHead').innerHTML = LIST_COLS.map(c =>
+    `<th onclick="setSort('${c.key}')">${c.label} ${sortKey === c.key ? `<span class="arrow">${sortDir > 0 ? '▲' : '▼'}</span>` : ''}</th>`
+  ).join('');
+
+  const fl = filteredLeads().slice().sort((a,b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (sortKey === 'value') { va = Number(va || 0); vb = Number(vb || 0); }
+    else if (sortKey === 'priority') { va = PRIORITY_RANK[va]; vb = PRIORITY_RANK[vb]; }
+    else if (sortKey === 'stage') { va = STAGES.findIndex(s => s.key === va); vb = STAGES.findIndex(s => s.key === vb); }
+    else if (sortKey === 'assigned_to') { va = profName(va).toLowerCase(); vb = profName(vb).toLowerCase(); }
+    else { va = String(va ?? '').toLowerCase(); vb = String(vb ?? '').toLowerCase(); }
+    return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
+  });
+
+  $('listEmpty').classList.toggle('hidden', fl.length > 0);
+  $('listBody').innerHTML = fl.map(l => {
+    const s = stageOf(l.stage);
+    return `
+    <tr onclick="openLead('${l.id}')">
+      <td style="font-weight:600">${esc(l.name)}</td>
+      <td><span class="stg"><i style="background:${s.color}"></i>${s.label}</span></td>
+      <td><span class="pri p-${l.priority}"><i></i>${priLabel(l.priority)}</span></td>
+      <td>${esc(profName(l.assigned_to))}</td>
+      <td>${Number(l.value) ? money(l.value) : '—'}</td>
+      <td>${esc(l.source) || '—'}</td>
+      <td>${esc(l.location) || '—'}</td>
+      <td class="${isOverdue(l) ? 'overdue' : ''}">${fmtDate(l.next_follow_up)}</td>
+      <td style="color:var(--muted)">${fmtDate(l.created_at)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function setSort(k){
+  if (sortKey === k) sortDir = -sortDir;
+  else { sortKey = k; sortDir = 1; }
+  renderList();
+}
+
+/* ---------------- lead modal ---------------- */
+function openLead(id){
+  openLeadId = id;
+  const isNew = !id;
+  const l = isNew ? null : leads.find(x => x.id === id);
+  if (!isNew && !l) return;
+
+  $('leadModalTitle').textContent = isNew ? 'New Lead' : l.name;
+  $('btnSaveLead').textContent = isNew ? 'Add Lead' : 'Save Changes';
+  $('btnDeleteLead').classList.toggle('hidden', isNew);
+  $('activityBlock').classList.toggle('hidden', isNew);
+
+  $('lf_name').value     = l?.name || '';
+  $('lf_phone').value    = l?.phone || '';
+  $('lf_email').value    = l?.email || '';
+  $('lf_source').value   = l?.source || '';
+  $('lf_location').value = l?.location || '';
+  $('lf_interest').value = l?.interest || '';
+  $('lf_value').value    = l?.value || '';
+  $('lf_priority').value = l?.priority || 'warm';
+  $('lf_stage').value    = l?.stage || 'new';
+  $('lf_assigned').value = l?.assigned_to || '';
+  $('lf_followup').value = l?.next_follow_up || '';
+
+  $('leadOverlay').classList.remove('hidden');
+  if (!isNew) loadNotes(id); else $('noteList').innerHTML = '';
+  if (isNew) setTimeout(() => $('lf_name').focus(), 50);
+}
+
+function collectLeadForm(){
+  return {
+    name:      $('lf_name').value.trim(),
+    phone:     $('lf_phone').value.trim(),
+    email:     $('lf_email').value.trim(),
+    source:    $('lf_source').value.trim(),
+    location:  $('lf_location').value.trim(),
+    interest:  $('lf_interest').value.trim(),
+    value:     Number($('lf_value').value || 0),
+    priority:  $('lf_priority').value,
+    stage:     $('lf_stage').value,
+    assigned_to: $('lf_assigned').value || null,
+    next_follow_up: $('lf_followup').value || null,
+  };
+}
+
+async function saveLead(){
+  const rec = collectLeadForm();
+  if (!rec.name) { toast('Name is required', true); return; }
+
+  if (!openLeadId) {
+    const { data, error } = await sb.from('leads').insert(rec).select().single();
+    if (error) { toast('Save failed: ' + error.message, true); return; }
+    leads.push(data);
+    toast('Lead added');
+  } else {
+    const old = leads.find(l => l.id === openLeadId);
+    const { data, error } = await sb.from('leads').update(rec).eq('id', openLeadId).select().single();
+    if (error) { toast('Save failed: ' + error.message, true); return; }
+    if (old && old.stage !== rec.stage)
+      logSystem(openLeadId, `Stage: ${stageOf(old.stage).label} → ${stageOf(rec.stage).label}`);
+    if (old && (old.assigned_to || null) !== rec.assigned_to)
+      logSystem(openLeadId, `Assigned to ${rec.assigned_to ? profName(rec.assigned_to) : 'nobody'}`);
+    leads = leads.map(l => l.id === openLeadId ? data : l);
+    toast('Saved');
+  }
+  closeOverlay('leadOverlay');
+  renderAll();
+}
+
+async function deleteLead(){
+  if (!openLeadId) return;
+  const l = leads.find(x => x.id === openLeadId);
+  if (!confirm(`Delete lead "${l?.name}"? This also deletes its notes and cannot be undone.`)) return;
+  const { error } = await sb.from('leads').delete().eq('id', openLeadId);
+  if (error) { toast('Delete failed: ' + error.message, true); return; }
+  leads = leads.filter(x => x.id !== openLeadId);
+  closeOverlay('leadOverlay');
+  renderAll();
+  toast('Lead deleted');
+}
+
+/* ---------------- notes ---------------- */
+async function loadNotes(leadId){
+  const { data, error } = await sb.from('lead_notes')
+    .select('*').eq('lead_id', leadId).order('created_at', { ascending:false });
+  if (error) return;
+  $('noteList').innerHTML = data.map(n => `
+    <div class="note ${n.kind}">
+      <div class="who"><b>${esc(profName(n.author))}</b> · ${fmtDateTime(n.created_at)}</div>
+      <div class="body">${esc(n.body)}</div>
+    </div>`).join('') || '<div style="color:var(--muted);font-size:13px;">No notes yet.</div>';
+}
+
+async function addNote(){
+  const body = $('noteInput').value.trim();
+  if (!body || !openLeadId) return;
+  const { error } = await sb.from('lead_notes').insert({ lead_id: openLeadId, author: me.id, body, kind:'note' });
+  if (error) { toast('Note failed: ' + error.message, true); return; }
+  $('noteInput').value = '';
+  loadNotes(openLeadId);
+}
+
+async function logSystem(leadId, body){
+  await sb.from('lead_notes').insert({ lead_id: leadId, author: me.id, body, kind:'system' });
+}
+
+/* ---------------- CSV import ---------------- */
+const IMPORT_FIELDS = [
+  { key:'',               label:'— skip —' },
+  { key:'name',           label:'Name' },
+  { key:'phone',          label:'Phone' },
+  { key:'email',          label:'Email' },
+  { key:'source',         label:'Source' },
+  { key:'interest',       label:'Interested In' },
+  { key:'location',       label:'Location' },
+  { key:'value',          label:'Est. Value' },
+  { key:'priority',       label:'Priority' },
+  { key:'stage',          label:'Stage' },
+  { key:'next_follow_up', label:'Follow-Up Date' },
+  { key:'note',           label:'First Note' },
+];
+const AUTO_MAP = [
+  [/^(full ?)?name$|contact/i, 'name'],
+  [/phone|mobile|cell|tel/i, 'phone'],
+  [/e-?mail/i, 'email'],
+  [/source|campaign|channel|origin/i, 'source'],
+  [/interest|building|product|type|size|wants?/i, 'interest'],
+  [/location|city|county|state|zip|address/i, 'location'],
+  [/value|budget|amount|price|deal/i, 'value'],
+  [/priority|temp|heat/i, 'priority'],
+  [/stage|status/i, 'stage'],
+  [/follow|next|due/i, 'next_follow_up'],
+  [/note|comment|message|detail/i, 'note'],
+];
+
+function openImport(){
+  $('csvPaste').value = '';
+  $('csvFile').value = '';
+  importParsed = null;
+  $('importMapping').classList.add('hidden');
+  $('btnImport').disabled = true;
+  $('btnImport').textContent = 'Import 0 Leads';
+  $('importOverlay').classList.remove('hidden');
+}
+
+function csvFromFile(input){
+  const f = input.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => { $('csvPaste').value = reader.result; parseCsvInput(); };
+  reader.readAsText(f);
+}
+
+function parseCsv(text){
+  // handles quoted fields, commas/tabs auto-detect, CRLF
+  const delim = (text.split('\n')[0].includes('\t')) ? '\t' : ',';
+  const rows = [];
+  let row = [], cur = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i+1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += c;
+    } else if (c === '"') inQ = true;
+    else if (c === delim) { row.push(cur); cur = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(cur); cur = '';
+      if (row.some(v => v.trim() !== '')) rows.push(row);
+      row = [];
+    } else cur += c;
+  }
+  if (cur !== '' || row.length) { row.push(cur); if (row.some(v => v.trim() !== '')) rows.push(row); }
+  return rows;
+}
+
+function parseCsvInput(){
+  const text = $('csvPaste').value;
+  if (!text.trim()) {
+    importParsed = null;
+    $('importMapping').classList.add('hidden');
+    $('btnImport').disabled = true;
+    return;
+  }
+  const rows = parseCsv(text);
+  if (rows.length < 2) {
+    $('importInfo').textContent = 'Need a header row plus at least one data row.';
+    $('importMapping').classList.remove('hidden');
+    $('mapRow').innerHTML = ''; $('importPreview').innerHTML = '';
+    $('btnImport').disabled = true;
+    return;
+  }
+  const headers = rows[0].map(h => h.trim());
+  const dataRows = rows.slice(1);
+  const mapping = headers.map(h => {
+    for (const [re, key] of AUTO_MAP) if (re.test(h)) return key;
+    return '';
+  });
+  // ensure only one column maps to 'name'
+  let seenName = false;
+  mapping.forEach((m, i) => { if (m === 'name') { if (seenName) mapping[i] = ''; seenName = true; } });
+
+  importParsed = { headers, rows: dataRows, mapping };
+  renderImportUI();
+}
+
+function renderImportUI(){
+  const { headers, rows, mapping } = importParsed;
+  $('importMapping').classList.remove('hidden');
+  $('importInfo').textContent = `${rows.length} row${rows.length === 1 ? '' : 's'} detected. Match each column to a lead field (unmatched columns are skipped):`;
+  $('mapRow').innerHTML = headers.map((h, i) => `
+    <div class="mapcell">
+      <div class="src" title="${esc(h)}">${esc(h) || '(blank)'}</div>
+      <select onchange="importParsed.mapping[${i}] = this.value; updateImportBtn()">
+        ${IMPORT_FIELDS.map(f => `<option value="${f.key}" ${mapping[i] === f.key ? 'selected' : ''}>${f.label}</option>`).join('')}
+      </select>
+    </div>`).join('');
+  $('importPreview').innerHTML = rows.slice(0,4).map(r =>
+    `<tr>${headers.map((_, i) => `<td>${esc(r[i] ?? '')}</td>`).join('')}</tr>`).join('');
+  updateImportBtn();
+}
+
+function updateImportBtn(){
+  const ok = importParsed && importParsed.mapping.includes('name');
+  $('btnImport').disabled = !ok;
+  $('btnImport').textContent = ok
+    ? `Import ${importParsed.rows.length} Lead${importParsed.rows.length === 1 ? '' : 's'}`
+    : 'Map a column to "Name" first';
+}
+
+function normPriority(v){
+  v = String(v || '').toLowerCase();
+  if (/hot|high|urgent/.test(v)) return 'hot';
+  if (/warm/.test(v)) return 'warm';
+  if (/long|dream|cold|low/.test(v)) return 'longterm';
+  if (/nurt|email/.test(v)) return 'nurture';
+  return 'standard';
+}
+function normStage(v){
+  v = String(v || '').toLowerCase();
+  const hit = STAGES.find(s => v.includes(s.key) || v.includes(s.label.toLowerCase()));
+  return hit ? hit.key : 'new';
+}
+function normDate(v){
+  const d = new Date(v);
+  if (isNaN(d)) return null;
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+async function runImport(){
+  const { rows, mapping } = importParsed;
+  const records = [], firstNotes = [];
+  for (const r of rows) {
+    const rec = { priority:'standard', stage:'new' };
+    let note = '';
+    mapping.forEach((field, i) => {
+      const v = (r[i] ?? '').trim();
+      if (!field || !v) return;
+      if (field === 'value') rec.value = Number(v.replace(/[^0-9.]/g,'')) || 0;
+      else if (field === 'priority') rec.priority = normPriority(v);
+      else if (field === 'stage') rec.stage = normStage(v);
+      else if (field === 'next_follow_up') rec.next_follow_up = normDate(v);
+      else if (field === 'note') note = v;
+      else rec[field] = v;
+    });
+    if (!rec.name) continue;
+    records.push(rec);
+    firstNotes.push(note);
+  }
+  if (!records.length) { toast('No usable rows (every row needs a name)', true); return; }
+
+  $('btnImport').disabled = true;
+  $('btnImport').textContent = 'Importing…';
+  const { data, error } = await sb.from('leads').insert(records).select();
+  if (error) {
+    toast('Import failed: ' + error.message, true);
+    updateImportBtn();
+    return;
+  }
+  // attach first notes where provided
+  const noteRows = data
+    .map((lead, i) => firstNotes[i] ? { lead_id: lead.id, author: me.id, body: firstNotes[i], kind:'note' } : null)
+    .filter(Boolean);
+  if (noteRows.length) await sb.from('lead_notes').insert(noteRows);
+
+  leads.push(...data);
+  closeOverlay('importOverlay');
+  renderAll();
+  toast(`Imported ${data.length} lead${data.length === 1 ? '' : 's'}`);
+}
+
+/* ---------------- go ---------------- */
+boot();
+</script>
+</body>
+</html>
