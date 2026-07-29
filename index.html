@@ -894,7 +894,7 @@ function openLead(id){
   $('lf_location').value = l?.location || '';
   $('lf_interest').value = l?.interest || '';
   $('lf_value').value    = l?.value || '';
-  $('lf_priority').value = l?.priority || 'warm';
+  $('lf_priority').value = l?.priority || 'standard';
   $('lf_stage').value    = l?.stage || 'new';
   $('lf_assigned').value = l?.assigned_to || (isManager ? '' : me.id);
   $('lf_followup').value = l?.next_follow_up || '';
