@@ -467,6 +467,7 @@
       </div>
       <div class="fld"><label>Stage</label><select id="lf_stage"></select></div>
       <div class="fld"><label>Assigned To</label><select id="lf_assigned"></select></div>
+      <div class="fld"><label>Inquired On</label><input id="lf_inquired" type="date"></div>
       <div class="fld"><label>Next Follow-Up</label><input id="lf_followup" type="date"></div>
     </div>
     <div class="modal-actions">
@@ -562,7 +563,7 @@ let profiles = [];          // team
 let leads = [];
 let view = 'board';
 let filterMine = false, filterOverdue = false;
-let sortKey = 'created_at', sortDir = -1;
+let sortKey = 'inquired_on', sortDir = -1;   // default: newest inquiries first
 let openLeadId = null;      // lead currently in the modal (null = new)
 let importParsed = null;    // { headers, rows, mapping }
 let realtimeTimer = null;
@@ -758,7 +759,8 @@ function renderStats(){
 
 function cardHtml(l){
   const fup = l.next_follow_up
-    ? `<span class="fup ${isOverdue(l) ? 'overdue' : ''}">${fmtDate(l.next_follow_up)}</span>` : '';
+    ? `<span class="fup ${isOverdue(l) ? 'overdue' : ''}">Due ${fmtDate(l.next_follow_up)}</span>`
+    : (l.inquired_on ? `<span class="fup" title="Inquiry date">${fmtDate(l.inquired_on)}</span>` : '');
   const owner = l.assigned_to
     ? `<span class="avatar" style="width:20px;height:20px;font-size:8.5px;" title="${esc(profName(l.assigned_to))}">${initials(profName(l.assigned_to))}</span>` : '';
   return `
@@ -781,7 +783,9 @@ function renderBoard(){
   const fl = filteredLeads();
   $('boardView').innerHTML = STAGES.map(s => {
     const items = fl.filter(l => l.stage === s.key)
-      .sort((a,b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || (a.next_follow_up || '9999') .localeCompare(b.next_follow_up || '9999'));
+      .sort((a,b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
+        || (b.inquired_on || '').localeCompare(a.inquired_on || '')          // newest inquiry first
+        || (a.next_follow_up || '9999').localeCompare(b.next_follow_up || '9999'));
     return `
     <div class="col" data-stage="${s.key}">
       <div class="col-head">
@@ -831,8 +835,8 @@ const LIST_COLS = [
   { key:'value',          label:'Value' },
   { key:'source',         label:'Source' },
   { key:'location',       label:'Location' },
+  { key:'inquired_on',    label:'Inquired' },
   { key:'next_follow_up', label:'Follow-Up' },
-  { key:'created_at',     label:'Added' },
 ];
 
 function renderList(){
@@ -862,8 +866,8 @@ function renderList(){
       <td>${Number(l.value) ? money(l.value) : '—'}</td>
       <td>${esc(l.source) || '—'}</td>
       <td>${esc(l.location) || '—'}</td>
+      <td style="color:var(--sub)">${fmtDate(l.inquired_on)}</td>
       <td class="${isOverdue(l) ? 'overdue' : ''}">${fmtDate(l.next_follow_up)}</td>
-      <td style="color:var(--muted)">${fmtDate(l.created_at)}</td>
     </tr>`;
   }).join('');
 }
@@ -897,6 +901,7 @@ function openLead(id){
   $('lf_priority').value = l?.priority || 'standard';
   $('lf_stage').value    = l?.stage || 'new';
   $('lf_assigned').value = l?.assigned_to || (isManager ? '' : me.id);
+  $('lf_inquired').value = l?.inquired_on || (isNew ? todayStr() : '');
   $('lf_followup').value = l?.next_follow_up || '';
 
   $('leadOverlay').classList.remove('hidden');
@@ -916,6 +921,7 @@ function collectLeadForm(){
     priority:  $('lf_priority').value,
     stage:     $('lf_stage').value,
     assigned_to: $('lf_assigned').value || null,
+    inquired_on: $('lf_inquired').value || null,
     next_follow_up: $('lf_followup').value || null,
   };
 }
@@ -998,10 +1004,12 @@ const IMPORT_FIELDS = [
   { key:'value',          label:'Est. Value' },
   { key:'priority',       label:'Priority' },
   { key:'stage',          label:'Stage' },
+  { key:'inquired_on',    label:'Inquiry Date' },
   { key:'next_follow_up', label:'Follow-Up Date' },
   { key:'note',           label:'First Note' },
 ];
 const AUTO_MAP = [
+  [/submit|inquir|receiv|created/i, 'inquired_on'],
   [/^(full ?)?name$|contact/i, 'name'],
   [/phone|mobile|cell|tel/i, 'phone'],
   [/e-?mail/i, 'email'],
@@ -1126,6 +1134,9 @@ function normStage(v){
   return hit ? hit.key : 'new';
 }
 function normDate(v){
+  v = String(v || '').trim();
+  const iso = v.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];                    // already ISO — avoid UTC off-by-one
   const d = new Date(v);
   if (isNaN(d)) return null;
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -1138,7 +1149,7 @@ async function runImport(){
     // Every record must carry the SAME full set of columns — PostgREST bulk
     // inserts reject mixed key-sets (blank fields become '' / null, not absent).
     const rec = { name:'', phone:'', email:'', source:'', interest:'', location:'',
-                  value:0, priority:'standard', stage:'new', next_follow_up:null };
+                  value:0, priority:'standard', stage:'new', inquired_on:null, next_follow_up:null };
     let note = '';
     mapping.forEach((field, i) => {
       const v = (r[i] ?? '').trim();
@@ -1146,6 +1157,7 @@ async function runImport(){
       if (field === 'value') rec.value = Number(v.replace(/[^0-9.]/g,'')) || 0;
       else if (field === 'priority') rec.priority = normPriority(v);
       else if (field === 'stage') rec.stage = normStage(v);
+      else if (field === 'inquired_on') rec.inquired_on = normDate(v);
       else if (field === 'next_follow_up') rec.next_follow_up = normDate(v);
       else if (field === 'note') note = v;
       else rec[field] = v;
