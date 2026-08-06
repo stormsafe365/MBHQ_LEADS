@@ -1135,7 +1135,10 @@ async function runImport(){
   const { rows, mapping } = importParsed;
   const records = [], firstNotes = [];
   for (const r of rows) {
-    const rec = { priority:'standard', stage:'new' };
+    // Every record must carry the SAME full set of columns — PostgREST bulk
+    // inserts reject mixed key-sets (blank fields become '' / null, not absent).
+    const rec = { name:'', phone:'', email:'', source:'', interest:'', location:'',
+                  value:0, priority:'standard', stage:'new', next_follow_up:null };
     let note = '';
     mapping.forEach((field, i) => {
       const v = (r[i] ?? '').trim();
